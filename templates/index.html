@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Cold Caller</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: linear-gradient(135deg, #007bff, #0056b3);
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      color: white;
+    }
+    #startButton {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #007bff, #003e73);
+      color: white;
+      border: none;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0px 6px 10px rgba(0, 0, 0, 0.2);
+      transition: transform 0.2s, box-shadow 0.3s;
+    }
+    #startButton:hover {
+      box-shadow: 0px 8px 15px rgba(0, 0, 0, 0.3);
+    }
+    #startButton:active {
+      transform: scale(0.95);
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: 300;
+    }
+    #waveform {
+      margin-top: 20px;
+      width: 600px;
+      height: 200px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <h1>CAR INSURANCE CALL AGENT</h1>
+  <button id="startButton">Start</button>
+  <div id="status">Click "Start" to begin listening.</div>
+  <canvas id="waveform"></canvas>
+
+  <script>
+    const startButton = document.getElementById('startButton');
+    const statusDiv = document.getElementById('status');
+    const canvas = document.getElementById('waveform');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 600;
+    canvas.height = 200;
+    let audioURL = null;
+    let audioContext, analyser, bufferLength, dataArray;
+
+    // Speech Recognition Setup
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let isListening = false;
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.addEventListener('result', async (event) => {
+        const transcript = event.results[0][0].transcript;
+        statusDiv.textContent = `You said: "${transcript}"`;
+
+        try {
+          const response = await fetch('/chatbot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: transcript }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            audioURL = data.audio_url;
+
+            const uniqueAudioURL = `${audioURL}?t=${Date.now()}`;
+            console.log('Unique Audio URL:', uniqueAudioURL);
+
+            // Play audio and connect it to the visualizer
+            playAudioWithVisualizer(uniqueAudioURL);
+          } else {
+            statusDiv.textContent = "Error processing your request.";
+          }
+        } catch (error) {
+          console.error('Network error:', error);
+          statusDiv.textContent = "Network error.";
+        }
+      });
+
+      recognition.addEventListener('end', () => {
+        isListening = false;
+        startButton.textContent = 'Start';
+        statusDiv.textContent = "Click 'Start' to speak again.";
+      });
+
+      recognition.addEventListener('error', (event) => {
+        statusDiv.textContent = `Error: ${event.error}`;
+      });
+    } else {
+      statusDiv.textContent = "Your browser doesn't support the Web Speech API.";
+      startButton.disabled = true;
+    }
+
+    startButton.addEventListener('click', () => {
+      if (isListening) {
+        recognition.stop();
+      } else {
+        recognition.start();
+        isListening = true;
+        startButton.textContent = 'Stop';
+        statusDiv.textContent = "Listening... Please speak into the microphone.";
+      }
+    });
+
+    function playAudioWithVisualizer(audioSrc) {
+      const audio = new Audio(audioSrc);
+      audio.crossOrigin = 'anonymous';
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+      const audioSource = audioContext.createMediaElementSource(audio);
+      analyser = audioContext.createAnalyser();
+      audioSource.connect(analyser);
+      analyser.connect(audioContext.destination);
+
+      analyser.fftSize = 2048;
+      bufferLength = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+
+      audio.play()
+        .then(() => {
+          statusDiv.textContent = " ";
+          animateWaveform();
+        })
+        .catch(error => {
+          console.error('Playback failed:', error);
+          statusDiv.textContent = "Failed to play response. See console for details.";
+        });
+    }
+
+    function animateWaveform() {
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        analyser.getByteTimeDomainData(dataArray);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#00ffcc';
+        ctx.beginPath();
+
+        const sliceWidth = canvas.width / bufferLength;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+          const v = dataArray[i] / 128.0;
+          const y = (v * canvas.height) / 2;
+
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+
+          x += sliceWidth;
+        }
+
+        ctx.lineTo(canvas.width, canvas.height / 2);
+        ctx.stroke();
+
+        requestAnimationFrame(draw);
+      }
+
+      draw();
+    }
+  </script>
+</body>
+</html>
