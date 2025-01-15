@@ -67,7 +67,7 @@ pip install flask flask-cors python-dotenv requests
    source venv/bin/activate  # For Linux/Mac
    venv\Scripts\activate     # For Windows
    ```
-4. Install dependencies:
+4. Install dependencies and unzip the essentials folder:
    ```bash
    pip install -r requirements.txt
    ```
