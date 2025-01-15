@@ -53,7 +53,7 @@ pip install flask flask-cors python-dotenv requests
 ```
 
 ### Steps to Run the Project
-1. Clone the repository:
+1. Clone the repository name the folder as Cold-Call-AI:
    ```bash
    git clone https://github.com/Archana-K-M/Cold-Call-AI.git
    ```
